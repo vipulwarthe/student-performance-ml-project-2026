@@ -46,6 +46,8 @@ The objective of this project is to build a machine learning model that predicts
     python application.py
 
 ## access the application on "Public IP:5000" or you can use this as well "public ip:5000/predictdata"
+
+# Deployment of this application using EC2, ECR, ECS : 
    
 
 
