@@ -13,7 +13,7 @@ The objective of this project is to build a machine learning model that predicts
 
     Original link: Krish naik Repo link: https://github.com/krishnaik06/mlproject/
 
-    My repo link:  https://github.com/vipulwarthe/student-performance
+    My repo link:  https://github.com/vipulwarthe/student-performance-ml-project-2026.git
 
 ## First we Create instance with ubuntu AMI with t2.medium instance type with 30GB storage and sg-SSH/All Traffic-anywhere
 
@@ -31,7 +31,7 @@ The objective of this project is to build a machine learning model that predicts
 
 ## clone the repository and go to the project repo
 
-    git clone <repo url>
+    git clone https://github.com/vipulwarthe/student-performance-ml-project-2026.git
     pip install -r requirements.txt
 
 ## select the kernel and run the both notebooks so we can build and save the model and then run below commands
