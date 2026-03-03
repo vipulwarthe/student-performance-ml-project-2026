@@ -106,7 +106,23 @@ The objective of this project is to build a machine learning model that predicts
 *  create TaskDefination
 *  create service
 
-## access the application using <cluster IP:5000>       ----  use /predicdata  after port to predict the performancre
+## access the application using <public ip of cluster:5000>  with /predicdata to predict the performancre
+
+## Deletion Process:
+
+- First stop the task
+
+- deregister the task defination 
+
+- delete the task defination
+
+- Delete cluster
+
+- Delete Image and delete Repo
+
+- Delete IAM Role related to ECS
+
+- Terminate the EC2 instance
 
 
     
