@@ -103,8 +103,11 @@ The objective of this project is to build a machine learning model that predicts
        docker push 459499397844.dkr.ecr.us-east-1.amazonaws.com/sp-repo:latest
 
 ## create ECS cluster
+
+*  create ECS cluster
 *  create TaskDefination
 *  create service
+*  go to the cluster click on Task and copy the public ip
 
 ## access the application using <public ip of cluster:5000>  with /predicdata to predict the performancre
 
