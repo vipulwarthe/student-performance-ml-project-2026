@@ -1,5 +1,7 @@
 # student-performance-ml-project
 
+## Deploy end to end student performance ML model with AWS ECR and AWS ECS
+
 ## Problem Statement
 
 The objective of this project is to build a machine learning model that predicts students' mathematics scores using features such as gender, ethnicity, parental education level, lunch type, and test preparation course completion.
@@ -47,9 +49,64 @@ The objective of this project is to build a machine learning model that predicts
 
 ## access the application on "Public IP:5000" or you can use this as well "public ip:5000/predictdata"
 
-# Deployment of this application using EC2, ECR, ECS : 
-   
+# Deployment of the application using EC2, ECR, ECS : 
 
+## Install AWSCLI
+
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    sudo apt install unzip -y
+    unzip awscliv2.zip
+    sudo ./aws/install 
+
+## configure aws with access and secret key along with region name
+
+    aws configure
+
+## Install Docker
+
+    sudo vi docker-install.sh
+
+    # Add Docker's official GPG key:
+    sudo apt update
+    sudo apt install ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+    # Add the repository to Apt sources:
+    sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+    Types: deb
+    URIs: https://download.docker.com/linux/ubuntu
+    Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+    Components: stable
+    Signed-By: /etc/apt/keyrings/docker.asc
+    EOF
+
+    sudo apt update -y
+    sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+    docker --version
+    sudo usermod -aG docker $USER         #OR you can use "newgrp docker" as a next commmand
+    sudo chown $USER /var/run/docker.sock 
+    sudo systemctl enable docker
+    sudo systemctl start docker
+    sudo systemctl status docker
+
+    sudo chmod +x docker-install.sh
+    ./docker-install.sh
+
+## create ECR repo name sp-repo
+*  push the commands from repository page
+
+       aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 459499397844.dkr.ecr.us-east-1.amazonaws.com
+       docker build -t sp-repo .
+       docker tag sp-repo:latest 459499397844.dkr.ecr.us-east-1.amazonaws.com/sp-repo:latest
+       docker push 459499397844.dkr.ecr.us-east-1.amazonaws.com/sp-repo:latest
+
+## create ECS cluster
+*  create TaskDefination
+*  create service
+
+## access the application using <cluster IP:5000>       ----  use /predicdata  after port to predict the performancre
 
 
     
