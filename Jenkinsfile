@@ -26,39 +26,12 @@ pipeline {
         // 🔐 TRIVY FILE SYSTEM SCAN
         stage('Trivy FS Scan') {
             steps {
-                sh '''
+                sh sh "trivy fs --format table -o fs.html ."
                 echo "Running Trivy FS Scan..."
-
-                # TXT Report
-                trivy fs \
-                --format table \
-                --output trivy-fs-report.txt \
-                .
-            }
-        }
 
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $ECR_REPO:$IMAGE_TAG .'
-            }
-        }
-
-        // 🔐 TRIVY IMAGE SCAN 
-        stage('Trivy Image Scan') {
-            steps {
-                sh '''
-                trivy image \
-                --format table \
-                --output trivy-image-report.txt \
-                $ECR_REPO:$IMAGE_TAG
-                '''
-            }
-        }
-
-        // 📤 UPLOAD REPORTS TO JENKINS
-        stage('Archive Reports') {
-            steps {
-                archiveArtifacts artifacts: '*.txt, fingerprint: true
             }
         }
 
