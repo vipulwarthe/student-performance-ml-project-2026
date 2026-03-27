@@ -7,7 +7,6 @@ pipeline {
         ECR_REPO     = 'student-app'
         IMAGE_TAG    = "${BUILD_NUMBER}"
         IMAGE_URI    = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-        TF_DIR       = 'terraform'
     }
 
     options {
@@ -74,8 +73,8 @@ pipeline {
             }
         }
 
-        // 🔐 AWS AUTH + ECR + PUSH + TERRAFORM + ECS
-        stage('Deploy to AWS') {
+        // 🚀 ECR LOGIN + CREATE REPO + PUSH IMAGE
+        stage('Push to ECR') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
@@ -92,20 +91,11 @@ pipeline {
                     aws ecr describe-repositories --repository-names $ECR_REPO \
                     || aws ecr create-repository --repository-name $ECR_REPO
 
-                    echo "🚀 Pushing Docker Image..."
+                    echo "🏷 Tagging Docker Image..."
                     docker tag $ECR_REPO:$IMAGE_TAG $IMAGE_URI
+
+                    echo "🚀 Pushing Docker Image to ECR..."
                     docker push $IMAGE_URI
-
-                    echo "🌍 Running Terraform..."
-                    cd $TF_DIR
-                    terraform init
-                    terraform apply -auto-approve -var="image_uri=$IMAGE_URI"
-
-                    echo "♻️ Deploying ECS Service..."
-                    aws ecs update-service \
-                    --cluster student-cluster \
-                    --service student-service \
-                    --force-new-deployment
                     '''
                 }
             }
@@ -114,10 +104,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Deployment Successful'
+            echo '✅ Image successfully pushed to ECR'
         }
         failure {
-            echo '❌ Deployment Failed'
+            echo '❌ Pipeline failed'
         }
         always {
             script {
