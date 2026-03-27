@@ -27,17 +27,15 @@ pipeline {
         stage('Trivy FS Scan') {
             steps {
                 sh '''
-                echo "Running Trivy FS Scan..."
                 trivy fs \
                 --format template \
                 --template "@/usr/local/share/trivy/templates/html.tpl" \
                 --output trivy-fs-report.html \
-                . || true
+                .
                 '''
             }
         }
 
-        // 🐳 BUILD IMAGE
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $ECR_REPO:$IMAGE_TAG .'
@@ -48,28 +46,26 @@ pipeline {
         stage('Trivy Image Scan') {
             steps {
                 sh '''
-                echo "Running Trivy Image Scan..."
                 trivy image \
                 --format template \
                 --template "@/usr/local/share/trivy/templates/html.tpl" \
                 --output trivy-image-report.html \
-                $ECR_REPO:$IMAGE_TAG || true
+                $ECR_REPO:$IMAGE_TAG
                 '''
             }
         }
 
-        // 📦 ARCHIVE REPORTS
+        // 📦 Archive Reports
         stage('Archive Reports') {
             steps {
                 archiveArtifacts artifacts: '*.html', fingerprint: true
             }
         }
 
-        // 🔥 SECURITY GATE (FAIL ONLY CRITICAL)
+        // 🚨 Security Gate (fail only on CRITICAL)
         stage('Security Gate') {
             steps {
                 sh '''
-                echo "Checking CRITICAL vulnerabilities..."
                 trivy image \
                 --severity CRITICAL \
                 --exit-code 1 \
@@ -78,61 +74,40 @@ pipeline {
             }
         }
 
-        // 🔐 ECR LOGIN
-        stage('ECR Login') {
+        // 🔐 AWS AUTH + ECR + PUSH + TERRAFORM + ECS
+        stage('Deploy to AWS') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-creds'
                 ]]) {
+
                     sh '''
-                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-                    '''
-                }
-            }
-        }
+                    echo "🔐 Logging into ECR..."
+                    aws ecr get-login-password --region $AWS_REGION | \
+                    docker login --username AWS \
+                    --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-        // 📦 CREATE ECR REPO (FIXED)
-        stage('Create ECR Repo (if not exists)') {
-            steps {
-                sh '''
-                aws ecr describe-repositories --repository-names $ECR_REPO || \
-                aws ecr create-repository --repository-name $ECR_REPO
-                '''
-            }
-        }
+                    echo "📦 Creating ECR repo if not exists..."
+                    aws ecr describe-repositories --repository-names $ECR_REPO \
+                    || aws ecr create-repository --repository-name $ECR_REPO
 
-        // 📤 PUSH IMAGE
-        stage('Push Image') {
-            steps {
-                sh '''
-                docker tag $ECR_REPO:$IMAGE_TAG $IMAGE_URI
-                docker push $IMAGE_URI
-                '''
-            }
-        }
+                    echo "🚀 Pushing Docker Image..."
+                    docker tag $ECR_REPO:$IMAGE_TAG $IMAGE_URI
+                    docker push $IMAGE_URI
 
-        // 🌍 TERRAFORM
-        stage('Terraform Apply') {
-            steps {
-                dir("$TF_DIR") {
-                    sh '''
+                    echo "🌍 Running Terraform..."
+                    cd $TF_DIR
                     terraform init
                     terraform apply -auto-approve -var="image_uri=$IMAGE_URI"
+
+                    echo "♻️ Deploying ECS Service..."
+                    aws ecs update-service \
+                    --cluster student-cluster \
+                    --service student-service \
+                    --force-new-deployment
                     '''
                 }
-            }
-        }
-
-        // 🚀 ECS DEPLOY
-        stage('Deploy ECS') {
-            steps {
-                sh '''
-                aws ecs update-service \
-                --cluster student-cluster \
-                --service student-service \
-                --force-new-deployment
-                '''
             }
         }
     }
@@ -147,10 +122,9 @@ pipeline {
         always {
             script {
                 echo '🧹 Cleaning Docker...'
-                sh '''
-                docker system prune -f || true
-                '''
+                sh 'docker system prune -f || true'
             }
         }
     }
 }
+
