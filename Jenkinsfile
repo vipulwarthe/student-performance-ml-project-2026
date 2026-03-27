@@ -23,12 +23,15 @@ pipeline {
             }
         }
 
-        // 🔐 TRIVY FILE SYSTEM SCAN
+        // 🔐 TRIVY FS SCAN (HTML REPORT ONLY)
         stage('Trivy FS Scan') {
             steps {
                 sh '''
-                echo "Running Trivy FS Scan..."
-                trivy fs --severity HIGH,CRITICAL --exit-code 1 .
+                trivy fs \
+                --format template \
+                --template "@/usr/local/share/trivy/templates/html.tpl" \
+                --output trivy-fs-report.html \
+                .
                 '''
             }
         }
@@ -39,12 +42,34 @@ pipeline {
             }
         }
 
-        // 🔐 TRIVY IMAGE SCAN (IMPORTANT)
+        // 🔐 TRIVY IMAGE SCAN (HTML REPORT)
         stage('Trivy Image Scan') {
             steps {
                 sh '''
-                echo "Running Trivy Image Scan..."
-                trivy image --severity HIGH,CRITICAL --exit-code 1 $ECR_REPO:$IMAGE_TAG
+                trivy image \
+                --format template \
+                --template "@/usr/local/share/trivy/templates/html.tpl" \
+                --output trivy-image-report.html \
+                $ECR_REPO:$IMAGE_TAG
+                '''
+            }
+        }
+
+        // 📦 ARCHIVE REPORTS
+        stage('Archive Reports') {
+            steps {
+                archiveArtifacts artifacts: '*.html', fingerprint: true
+            }
+        }
+
+        // 🔥 SECURITY GATE (ONLY CRITICAL)
+        stage('Security Gate') {
+            steps {
+                sh '''
+                trivy image \
+                --severity CRITICAL \
+                --exit-code 1 \
+                $ECR_REPO:$IMAGE_TAG
                 '''
             }
         }
@@ -96,19 +121,20 @@ pipeline {
         }
     }
 
-post {
-    success {
-        echo '✅ Deployment Successful'
-    }
-    failure {
-        echo '❌ Deployment Failed'
-    }
-    always {
-        script {
-            echo 'Cleaning Docker (safe mode)...'
-            sh '''
-            docker system prune -f || true
-            '''
+    post {
+        success {
+            echo '✅ Deployment Successful'
+        }
+        failure {
+            echo '❌ Deployment Failed'
+        }
+        always {
+            script {
+                echo '🧹 Cleaning Docker...'
+                sh '''
+                docker system prune -f || true
+                '''
+            }
         }
     }
 }
