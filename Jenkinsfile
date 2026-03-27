@@ -8,7 +8,6 @@ pipeline {
         IMAGE_TAG    = "${BUILD_NUMBER}"
         IMAGE_URI    = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
         TF_DIR       = 'terraform'
-        SONAR_HOST   = 'http://54.221.127.55:9000'
     }
 
     options {
@@ -21,21 +20,6 @@ pipeline {
             steps {
                 git branch: 'main',
                 url: 'https://github.com/vipulwarthe/student-performance-ml-project-2026.git'
-            }
-        }
-
-        // 🔍 SONARQUBE SCAN
-        stage('SonarQube Analysis') {
-            steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    sh '''
-                    sonar-scanner \
-                    -Dsonar.projectKey=student-app \
-                    -Dsonar.sources=. \
-                    -Dsonar.host.url=$SONAR_HOST \
-                    -Dsonar.login=$SONAR_TOKEN
-                    '''
-                }
             }
         }
 
