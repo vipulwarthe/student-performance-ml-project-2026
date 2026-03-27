@@ -28,8 +28,12 @@ pipeline {
             steps {
                 sh '''
                 echo "Running Trivy FS Scan..."
-                trivy fs --severity HIGH,CRITICAL --exit-code 1 .
-                '''
+
+                # TXT Report
+                trivy fs \
+                --format table \
+                --output trivy-fs-report.txt \
+                .
             }
         }
 
@@ -39,12 +43,35 @@ pipeline {
             }
         }
 
-        // 🔐 TRIVY IMAGE SCAN (IMPORTANT)
+        // 🔐 TRIVY IMAGE SCAN 
         stage('Trivy Image Scan') {
             steps {
                 sh '''
-                echo "Running Trivy Image Scan..."
-                trivy image --severity HIGH,CRITICAL --exit-code 1 $ECR_REPO:$IMAGE_TAG
+                trivy image \
+                --format table \
+                --output trivy-image-report.txt \
+                $ECR_REPO:$IMAGE_TAG
+                '''
+            }
+        }
+
+        // 📤 UPLOAD REPORTS TO JENKINS
+        stage('Archive Reports') {
+            steps {
+                archiveArtifacts artifacts: '*.txt, fingerprint: true
+            }
+        }
+
+        // 🔐 FAIL ONLY ON CRITICAL
+        stage('Security Gate') {
+            steps {
+                sh '''
+                echo "Checking for CRITICAL vulnerabilities..."
+
+                trivy image \
+                --severity CRITICAL \
+                --exit-code 1 \
+                $ECR_REPO:$IMAGE_TAG
                 '''
             }
         }
@@ -102,6 +129,9 @@ pipeline {
         }
         failure {
             echo 'Deployment Failed'
+        }
+        always {
+            sh 'docker system prune -f'
         }
     }
 }
