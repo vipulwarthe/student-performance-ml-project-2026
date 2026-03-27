@@ -23,34 +23,37 @@ pipeline {
             }
         }
 
-        // 🔐 TRIVY FS SCAN (HTML REPORT ONLY)
+        // 🔐 TRIVY FS SCAN (HTML)
         stage('Trivy FS Scan') {
             steps {
                 sh '''
+                echo "Running Trivy FS Scan..."
                 trivy fs \
                 --format template \
                 --template "@/usr/local/share/trivy/templates/html.tpl" \
                 --output trivy-fs-report.html \
-                .
+                . || true
                 '''
             }
         }
 
+        // 🐳 BUILD IMAGE
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $ECR_REPO:$IMAGE_TAG .'
             }
         }
 
-        // 🔐 TRIVY IMAGE SCAN (HTML REPORT)
+        // 🔐 TRIVY IMAGE SCAN (HTML)
         stage('Trivy Image Scan') {
             steps {
                 sh '''
+                echo "Running Trivy Image Scan..."
                 trivy image \
                 --format template \
                 --template "@/usr/local/share/trivy/templates/html.tpl" \
                 --output trivy-image-report.html \
-                $ECR_REPO:$IMAGE_TAG
+                $ECR_REPO:$IMAGE_TAG || true
                 '''
             }
         }
@@ -62,10 +65,11 @@ pipeline {
             }
         }
 
-        // 🔥 SECURITY GATE (ONLY CRITICAL)
+        // 🔥 SECURITY GATE (FAIL ONLY CRITICAL)
         stage('Security Gate') {
             steps {
                 sh '''
+                echo "Checking CRITICAL vulnerabilities..."
                 trivy image \
                 --severity CRITICAL \
                 --exit-code 1 \
@@ -74,6 +78,7 @@ pipeline {
             }
         }
 
+        // 🔐 ECR LOGIN
         stage('ECR Login') {
             steps {
                 withCredentials([[
@@ -81,21 +86,23 @@ pipeline {
                     credentialsId: 'aws-creds'
                 ]]) {
                     sh '''
-                    aws ecr get-login-password --region $AWS_REGION | \
-                    docker login --username AWS \
-                    --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
                     '''
                 }
             }
         }
 
-        stage('Create ECR Repo (if not exists)') { 
-            steps { sh ''' aws ecr describe-repositories --repository-names $ECR_REPO \ 
-                           || aws ecr create-repository --repository-name $ECR_REPO 
-                           ''' 
-            } 
+        // 📦 CREATE ECR REPO (FIXED)
+        stage('Create ECR Repo (if not exists)') {
+            steps {
+                sh '''
+                aws ecr describe-repositories --repository-names $ECR_REPO || \
+                aws ecr create-repository --repository-name $ECR_REPO
+                '''
+            }
         }
 
+        // 📤 PUSH IMAGE
         stage('Push Image') {
             steps {
                 sh '''
@@ -105,6 +112,7 @@ pipeline {
             }
         }
 
+        // 🌍 TERRAFORM
         stage('Terraform Apply') {
             steps {
                 dir("$TF_DIR") {
@@ -116,6 +124,7 @@ pipeline {
             }
         }
 
+        // 🚀 ECS DEPLOY
         stage('Deploy ECS') {
             steps {
                 sh '''
