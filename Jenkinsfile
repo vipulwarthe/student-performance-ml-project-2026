@@ -8,6 +8,7 @@ pipeline {
         IMAGE_TAG    = "${BUILD_NUMBER}"
         IMAGE_URI    = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
         TF_DIR       = 'terraform'
+        SONAR_HOST   = 'http://54.221.127.55:9000'
     }
 
     options {
@@ -23,33 +24,54 @@ pipeline {
             }
         }
 
-        stage('Verify Tools') {
+        // 🔍 SONARQUBE SCAN
+        stage('SonarQube Analysis') {
+            steps {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                    sonar-scanner \
+                    -Dsonar.projectKey=student-app \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=$SONAR_HOST \
+                    -Dsonar.login=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+
+        // 🔐 TRIVY FILE SYSTEM SCAN
+        stage('Trivy FS Scan') {
             steps {
                 sh '''
-                docker --version
-                aws --version
-                terraform version
+                echo "Running Trivy FS Scan..."
+                trivy fs --severity HIGH,CRITICAL --exit-code 1 .
                 '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
+                sh 'docker build -t $ECR_REPO:$IMAGE_TAG .'
+            }
+        }
+
+        // 🔐 TRIVY IMAGE SCAN (IMPORTANT)
+        stage('Trivy Image Scan') {
+            steps {
                 sh '''
-                echo "Building Docker Image..."
-                docker build -t $ECR_REPO:$IMAGE_TAG .
+                echo "Running Trivy Image Scan..."
+                trivy image --severity HIGH,CRITICAL --exit-code 1 $ECR_REPO:$IMAGE_TAG
                 '''
             }
         }
 
-        stage('Authenticate to AWS ECR') {
+        stage('ECR Login') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-creds'
                 ]]) {
                     sh '''
-                    echo "Logging into ECR..."
                     aws ecr get-login-password --region $AWS_REGION | \
                     docker login --username AWS \
                     --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
@@ -58,16 +80,7 @@ pipeline {
             }
         }
 
-        stage('Create ECR Repo (if not exists)') {
-            steps {
-                sh '''
-                aws ecr describe-repositories --repository-names $ECR_REPO \
-                || aws ecr create-repository --repository-name $ECR_REPO
-                '''
-            }
-        }
-
-        stage('Tag & Push Docker Image') {
+        stage('Push Image') {
             steps {
                 sh '''
                 docker tag $ECR_REPO:$IMAGE_TAG $IMAGE_URI
@@ -76,63 +89,24 @@ pipeline {
             }
         }
 
-        stage('Terraform Init') {
+        stage('Terraform Apply') {
             steps {
-                dir("${TF_DIR}") {
-                    sh 'terraform init'
-                }
-            }
-        }
-
-        stage('Terraform Validate') {
-            steps {
-                dir("${TF_DIR}") {
-                    sh 'terraform validate'
-                }
-            }
-        }
-
-        stage('Terraform Plan') {
-            steps {
-                dir("${TF_DIR}") {
+                dir("$TF_DIR") {
                     sh '''
-                    terraform plan \
-                    -var="image_uri=$IMAGE_URI" \
-                    -out=tfplan
+                    terraform init
+                    terraform apply -auto-approve -var="image_uri=$IMAGE_URI"
                     '''
                 }
             }
         }
 
-        stage('Terraform Apply') {
-            steps {
-                dir("${TF_DIR}") {
-                    sh 'terraform apply -auto-approve tfplan'
-                }
-            }
-        }
-
-        stage('Force ECS Deployment') {
+        stage('Deploy ECS') {
             steps {
                 sh '''
                 aws ecs update-service \
                 --cluster student-cluster \
                 --service student-service \
                 --force-new-deployment
-                '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                sh '''
-                aws ecs wait services-stable \
-                --cluster student-cluster \
-                --services student-service
-
-                aws elbv2 describe-load-balancers \
-                --query "LoadBalancers[?contains(LoadBalancerName, 'student-alb')].DNSName" \
-                --output text
                 '''
             }
         }
@@ -144,9 +118,6 @@ pipeline {
         }
         failure {
             echo 'Deployment Failed'
-        }
-        always {
-            sh 'docker system prune -f'
         }
     }
 }
