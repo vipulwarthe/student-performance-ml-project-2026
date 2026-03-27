@@ -89,6 +89,13 @@ pipeline {
             }
         }
 
+        stage('Create ECR Repo (if not exists)') { 
+            steps { sh ''' aws ecr describe-repositories --repository-names $ECR_REPO \ 
+                           || aws ecr create-repository --repository-name $ECR_REPO 
+                           ''' 
+            } 
+        }
+
         stage('Push Image') {
             steps {
                 sh '''
