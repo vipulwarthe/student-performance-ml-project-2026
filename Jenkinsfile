@@ -26,8 +26,12 @@ pipeline {
         // 🔐 TRIVY FILE SYSTEM SCAN
         stage('Trivy FS Scan') {
             steps {
-                sh sh "trivy fs --format table -o fs.html ."
+                sh '''
                 echo "Running Trivy FS Scan..."
+                trivy fs --severity HIGH,CRITICAL --exit-code 1 .
+                '''
+            }
+        }
 
         stage('Build Docker Image') {
             steps {
@@ -35,16 +39,12 @@ pipeline {
             }
         }
 
-        // 🔐 FAIL ONLY ON CRITICAL
-        stage('Security Gate') {
+        // 🔐 TRIVY IMAGE SCAN (IMPORTANT)
+        stage('Trivy Image Scan') {
             steps {
                 sh '''
-                echo "Checking for CRITICAL vulnerabilities..."
-
-                trivy image \
-                --severity CRITICAL \
-                --exit-code 1 \
-                $ECR_REPO:$IMAGE_TAG
+                echo "Running Trivy Image Scan..."
+                trivy image --severity HIGH,CRITICAL --exit-code 1 $ECR_REPO:$IMAGE_TAG
                 '''
             }
         }
