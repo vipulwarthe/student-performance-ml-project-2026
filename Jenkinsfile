@@ -123,15 +123,20 @@ pipeline {
         }
     }
 
-    post {
-        success {
-            echo 'Deployment Successful'
-        }
-        failure {
-            echo 'Deployment Failed'
-        }
-        always {
-            sh 'docker system prune -f'
+post {
+    success {
+        echo '✅ Deployment Successful'
+    }
+    failure {
+        echo '❌ Deployment Failed'
+    }
+    always {
+        script {
+            echo '🧹 Cleaning Docker resources...'
+            sh '''
+            docker image prune -f || true
+            docker container prune -f || true
+            '''
         }
     }
 }
