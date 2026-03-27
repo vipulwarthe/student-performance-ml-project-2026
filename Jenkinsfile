@@ -132,10 +132,9 @@ post {
     }
     always {
         script {
-            echo '🧹 Cleaning Docker resources...'
+            echo 'Cleaning Docker (safe mode)...'
             sh '''
-            docker image prune -f || true
-            docker container prune -f || true
+            docker system prune -f || true
             '''
         }
     }
