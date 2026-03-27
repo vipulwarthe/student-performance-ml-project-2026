@@ -22,49 +22,53 @@ pipeline {
             }
         }
 
-        // 🔐 TRIVY FS SCAN (HTML)
+        // 🔐 TRIVY FS SCAN
         stage('Trivy FS Scan') {
             steps {
                 sh '''
+                echo "Running Trivy FS Scan..."
                 trivy fs \
                 --format template \
                 --template "@/usr/local/share/trivy/templates/html.tpl" \
                 --output trivy-fs-report.html \
-                .
+                . || true
                 '''
             }
         }
 
+        // 🐳 BUILD IMAGE
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $ECR_REPO:$IMAGE_TAG .'
             }
         }
 
-        // 🔐 TRIVY IMAGE SCAN (HTML)
+        // 🔐 TRIVY IMAGE SCAN
         stage('Trivy Image Scan') {
             steps {
                 sh '''
+                echo "Running Trivy Image Scan..."
                 trivy image \
                 --format template \
                 --template "@/usr/local/share/trivy/templates/html.tpl" \
                 --output trivy-image-report.html \
-                $ECR_REPO:$IMAGE_TAG
+                $ECR_REPO:$IMAGE_TAG || true
                 '''
             }
         }
 
-        // 📦 Archive Reports
+        // 📦 ARCHIVE REPORTS
         stage('Archive Reports') {
             steps {
                 archiveArtifacts artifacts: '*.html', fingerprint: true
             }
         }
 
-        // 🚨 Security Gate (fail only on CRITICAL)
+        // 🚨 SECURITY GATE
         stage('Security Gate') {
             steps {
                 sh '''
+                echo "Checking CRITICAL vulnerabilities..."
                 trivy image \
                 --severity CRITICAL \
                 --exit-code 1 \
@@ -73,31 +77,37 @@ pipeline {
             }
         }
 
-        // 🚀 ECR LOGIN + CREATE REPO + PUSH IMAGE
-        stage('Push to ECR') {
+        // 🔐 ECR LOGIN + CREATE REPO
+        stage('ECR Login & Setup') {
             steps {
                 withCredentials([[
                     $class: 'AmazonWebServicesCredentialsBinding',
                     credentialsId: 'aws-creds'
                 ]]) {
-
                     sh '''
-                    echo "🔐 Logging into ECR..."
+                    echo "Logging into ECR..."
                     aws ecr get-login-password --region $AWS_REGION | \
                     docker login --username AWS \
                     --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-                    echo "📦 Creating ECR repo if not exists..."
+                    echo "Checking/Creating ECR repo..."
                     aws ecr describe-repositories --repository-names $ECR_REPO \
                     || aws ecr create-repository --repository-name $ECR_REPO
-
-                    echo "🏷 Tagging Docker Image..."
-                    docker tag $ECR_REPO:$IMAGE_TAG $IMAGE_URI
-
-                    echo "🚀 Pushing Docker Image to ECR..."
-                    docker push $IMAGE_URI
                     '''
                 }
+            }
+        }
+
+        // 📤 PUSH IMAGE
+        stage('Push Image') {
+            steps {
+                sh '''
+                echo "Tagging image..."
+                docker tag $ECR_REPO:$IMAGE_TAG $IMAGE_URI
+
+                echo "Pushing image to ECR..."
+                docker push $IMAGE_URI
+                '''
             }
         }
     }
@@ -117,4 +127,3 @@ pipeline {
         }
     }
 }
-
