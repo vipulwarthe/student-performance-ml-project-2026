@@ -37,15 +37,21 @@ The objective of this project is to build a machine learning model that predicts
     pip install -r requirements.txt
 
 ## select the kernel and run the both notebooks so we can build and save the model and then run below commands
-    
+
+    python3 -m src.components.data_ingestion
+    python3 -m src.components.data_transformation  
+    python3 -m src.components.model_trainer
+
+## we modify the commands so use above commands insted of below commands  (do not run below commands)
+
     python3 src/logger.py
-    python src/components/data_ingestion.py
-    python src/components/data_transformation.py
-    python src/components/model_trainer.py
+    python3 src/components/data_ingestion.py
+    python3 src/components/data_transformation.py
+    python3 src/components/model_trainer.py
 
 ## Run the application 
 
-    python application.py
+    python3 application.py
 
 ## access the application on "Public IP:5000" or you can use this as well "public ip:5000/predictdata"
 
